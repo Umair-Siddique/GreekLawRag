@@ -1,0 +1,9 @@
+python-dotenv
+elasticsearch
+langchain
+langchain-community
+langchain-voyageai
+langchain-anthropic
+anthropic
+google-generativeai
+google-auth
