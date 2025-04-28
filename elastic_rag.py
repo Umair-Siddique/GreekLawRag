@@ -16,6 +16,8 @@ from langchain.prompts import PromptTemplate  # ensure correct import
 from datetime import datetime
 import re
 
+from past_cases_rag import process_query_past_cases
+
 load_dotenv()
 
 # Load API keys
@@ -188,15 +190,21 @@ def process_query(user_query):
             break
 
     template = """
-You are a highly knowledgeable legal research assistant. Use ONLY the provided documents to answer the question below.
+You are a highly knowledgeable legal research assistant. Your task is to provide a detailed, plain-language explanation of how the provided legal documents address the user's query.
 
-When you answer:
-1. Identify the most recent laws, sorted by publication date (newest first).
-2. For each law, include only:
-   - Date and Authority
-   - A concise, plain‑language summary of its key points and impact.
-3. Omit detailed metadata listings—focus on explaining the substance and significance of each law.
-4. Immediately after each summary, include its citation link in the format: **Citation: <Page_URL> and do include key articles and Main laws if possible**.
+When answering, please follow this structure:
+
+1. Clearly explain the relevance of each provided document to the user's query.
+2. Identify the most recent laws first (sorted by publication date, newest to oldest).
+3. For each law, provide the following clearly and in detail:
+   - **Date and Issuing Authority**  
+   - **Law Numbers and Key Articles** (explicitly mention them)
+   - **Detailed Summary** explaining in plain language the key points, implications, and practical impact of each law, specifically relating to the user's query.
+4. After each detailed summary, include a citation link clearly formatted as:  
+   **Citation: <Page_URL>**
+
+Be thorough but clear and understandable. Focus explicitly on clarifying the substance and importance of each law and how it addresses the user's specific question.
+If the user query and retrieved document are completed irrelevant to each other of different Topic don't mention anyhthing.
 
 QUESTION:
 {query}
@@ -204,6 +212,7 @@ QUESTION:
 DOCUMENTS:
 {contexts}
 """
+
 
     prompt = PromptTemplate(
      template=template,
@@ -243,53 +252,45 @@ DOCUMENTS:
     full_prompt = prompt.format(query=user_query, contexts=contexts)
 # Now invoke your chain with the richer contexts:
 # Storage for streamed response
-    full_response_text = []
-
-# Streaming invocation of Claude
+    print("\n=== Laws Retrieved (Final Response) ===\n")
+    response_chunks = []
     try:
-    #   with anthropic_client.messages.create(
-    #     model="claude-3-7-sonnet-20250219",
-    #     max_tokens=3500,
-    #     temperature=0.5,
-    #     messages=[{"role": "user", "content": full_prompt}],
-    #     stream=True
-    #   ) as stream:
-    #      print("\n=== Claude Streaming Response ===\n")
-    #      for chunk in stream:
-    #         if chunk.type == "content_block_delta":
-    #             if hasattr(chunk.delta, 'text') and chunk.delta.text:
-    #                 print(chunk.delta.text, end="", flush=True)
-    #                 full_response_text.append(chunk.delta.text)
-    #      print()  # newline after streaming finishes
+        for chunk in gemini_client.models.generate_content_stream(
+            model="gemini-2.5-pro-exp-03-25",
+            contents=[full_prompt]
+        ):
+            print(chunk.text, end="", flush=True)
+            response_chunks.append(chunk.text)
+        
+        # Only proceed after successful completion of law retrieval and printing
+        response = "".join(response_chunks)
+        print("\n\n=== End of Laws Retrieval ===\n")
 
-    #      final_text = "".join(full_response_text)
+        # Now explicitly proceed to past court cases retrieval
+        print("\n=== Retrieving Relevant Past Court Cases ===\n")
 
-    #      if final_text:
-    #         response = final_text
-    #      else:
-    #         print("\nWarning: Stream finished but no text content received.")
-    #         response = "Warning: Received no text content from Claude stream."
-     response_chunks = []
-     for chunk in gemini_client.models.generate_content_stream(
-      model="gemini-2.5-pro-exp-03-25",
-      contents=[full_prompt]
-     ):
-    # each `chunk` is a small piece of the answer as it’s generated
-       print(chunk.text, end="", flush=True)
-       response_chunks.append(chunk.text)
-     response = "".join(response_chunks)
+        minimal_law_metadata = [{
+    "date": doc.metadata.get('date', ''),
+    "main_laws": doc.metadata.get('main_laws', ''),
+    "key_articles": doc.metadata.get('key_articles', ''),
+    "legal_field": doc.metadata.get('legal_field', ''),
+    "court": doc.metadata.get('court', ''),
+    "decision_number": doc.metadata.get('decision_number', ''),
+    "summary": doc.metadata.get('summary', '')[:500],  # brief summary for context
+    "Page_URL": doc.metadata.get('Page_URL', ''),
+} for doc in ranked_docs[:5]]
+
+        process_query_past_cases(user_query, minimal_law_metadata)
 
     except Exception as e:
-      print(f"\n--- Error calling Claude API (Streaming) ---")
-      print(f"An error occurred: {e}")
-      partial_text = "".join(full_response_text)
-      if partial_text:
+        print(f"\n--- Error during law retrieval streaming ---")
+        print(f"An error occurred: {e}")
+        partial_text = "".join(response_chunks)
         response = f"(Streaming interrupted by error: {e})\n{partial_text}"
-      else:
-        response = f"Error processing streaming request: {e}"
+        print(response)
 
-# Final output
-    print("\n\n=== Final Response Text ===\n", response)
+    print("\n=== Final Response Text ===\n", response)
+
 
 while True:
     user_query = input("\nPlease enter your query ('exit' to quit): ")
