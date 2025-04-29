@@ -316,3 +316,4 @@ DOCUMENTS:
 
 # Final output
     print("\n\n=== Final Response Text ===\n", response)
+    return response

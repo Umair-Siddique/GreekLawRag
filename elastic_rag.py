@@ -15,10 +15,13 @@ from langchain.prompts import PromptTemplate  # ensure correct import
 # # Sort retrieved documents by date (assuming DD Month YYYY format, adjust parsing as necessary)
 from datetime import datetime
 import re
-
+from flask import Flask, request, jsonify
 from past_cases_rag import process_query_past_cases
 
 load_dotenv()
+
+# Flask initialization
+app = Flask(__name__)
 
 # Load API keys
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
@@ -278,9 +281,9 @@ DOCUMENTS:
     "decision_number": doc.metadata.get('decision_number', ''),
     "summary": doc.metadata.get('summary', '')[:500],  # brief summary for context
     "Page_URL": doc.metadata.get('Page_URL', ''),
-} for doc in ranked_docs[:5]]
+        } for doc in ranked_docs[:5]]
 
-        process_query_past_cases(user_query, minimal_law_metadata)
+
 
     except Exception as e:
         print(f"\n--- Error during law retrieval streaming ---")
@@ -290,12 +293,35 @@ DOCUMENTS:
         print(response)
 
     print("\n=== Final Response Text ===\n", response)
+    return response, minimal_law_metadata
+
+@app.route('/query', methods=['POST'])
+def handle_query():
+    user_query = request.json.get('query')
+
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
+
+    # Execute your existing process_query logic here
+    response, minimal_law_metadata = process_query(user_query)
+
+    # Call past court cases API using minimal law metadata
+    past_cases_response_text = process_query_past_cases(user_query, minimal_law_metadata)
+
+    combined_response = {
+        "law_response": response,
+        "past_cases_response": past_cases_response_text
+    }
+
+    return jsonify(combined_response)
 
 
-while True:
-    user_query = input("\nPlease enter your query ('exit' to quit): ")
-    if user_query.lower() == 'exit':
-        break
-    process_query(user_query)
+# while True:
+#     user_query = input("\nPlease enter your query ('exit' to quit): ")
+#     if user_query.lower() == 'exit':
+#         break
+#     process_query(user_query)
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
 
 
