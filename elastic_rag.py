@@ -33,11 +33,28 @@ API_KEY= os.getenv("APIKEY_ES_LAWS")
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
 
+gemini_creds_dict = {
+    "type": os.getenv("GEMINI_TYPE"),
+    "project_id": os.getenv("GEMINI_PROJECT_ID"),
+    "private_key_id": os.getenv("GEMINI_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("GEMINI_PRIVATE_KEY").replace("\\n", "\n"),  # Ensuring proper newlines
+    "client_email": os.getenv("GEMINI_CLIENT_EMAIL"),
+    "client_id": os.getenv("GEMINI_CLIENT_ID"),
+    "auth_uri": os.getenv("GEMINI_AUTH_URI"),
+    "token_uri": os.getenv("GEMINI_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("GEMINI_AUTH_PROVIDER_CERT_URL"),
+    "client_x509_cert_url": os.getenv("GEMINI_CLIENT_CERT_URL"),
+    "universe_domain": os.getenv("GEMINI_UNIVERSE_DOMAIN")
+}
 
-creds = service_account.Credentials.from_service_account_file(
-    "credentials/gemini-service-account.json",
+creds = service_account.Credentials.from_service_account_info(
+    gemini_creds_dict,
     scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
+# creds = service_account.Credentials.from_service_account_file(
+#     "credentials/gemini-service-account.json",
+#     scopes=["https://www.googleapis.com/auth/cloud-platform"]
+# )
 
 # Initialize genai.Client using Vertex AI
 gemini_client = genai.Client(
@@ -403,13 +420,3 @@ def streamlit_app():
 
 if __name__ == "__main__":
         streamlit_app()
-
-# while True:
-#     user_query = input("\nPlease enter your query ('exit' to quit): ")
-#     if user_query.lower() == 'exit':
-#         break
-#     process_query(user_query)
-# if __name__ == '__main__':
-#     app.run(debug=True, host='0.0.0.0', port=5000)
-
-
