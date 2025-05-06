@@ -17,6 +17,8 @@ from datetime import datetime
 import re
 from flask import Flask, request, jsonify
 from past_cases_rag import process_query_past_cases
+import streamlit as st
+import sys
 
 load_dotenv()
 
@@ -256,23 +258,7 @@ DOCUMENTS:
 # Now invoke your chain with the richer contexts:
 # Storage for streamed response
     print("\n=== Laws Retrieved (Final Response) ===\n")
-    response_chunks = []
-    try:
-        for chunk in gemini_client.models.generate_content_stream(
-            model="gemini-2.5-pro-exp-03-25",
-            contents=[full_prompt]
-        ):
-            print(chunk.text, end="", flush=True)
-            response_chunks.append(chunk.text)
-        
-        # Only proceed after successful completion of law retrieval and printing
-        response = "".join(response_chunks)
-        print("\n\n=== End of Laws Retrieval ===\n")
-
-        # Now explicitly proceed to past court cases retrieval
-        print("\n=== Retrieving Relevant Past Court Cases ===\n")
-
-        minimal_law_metadata = [{
+    minimal_law_metadata = [{
     "date": doc.metadata.get('date', ''),
     "main_laws": doc.metadata.get('main_laws', ''),
     "key_articles": doc.metadata.get('key_articles', ''),
@@ -283,17 +269,37 @@ DOCUMENTS:
     "Page_URL": doc.metadata.get('Page_URL', ''),
         } for doc in ranked_docs[:5]]
 
+    # response_chunks = []
+    # try:
+    #     for chunk in gemini_client.models.generate_content_stream(
+    #         model="gemini-2.5-pro-exp-03-25",
+    #         contents=[full_prompt]
+    #     ):
+    #         print(chunk.text, end="", flush=True)
+    #         response_chunks.append(chunk.text)
+        
+    #     # Only proceed after successful completion of law retrieval and printing
+    #     response = "".join(response_chunks)
+    #     print("\n\n=== End of Laws Retrieval ===\n")
 
+    #     # Now explicitly proceed to past court cases retrieval
+    #     print("\n=== Retrieving Relevant Past Court Cases ===\n")
 
-    except Exception as e:
-        print(f"\n--- Error during law retrieval streaming ---")
-        print(f"An error occurred: {e}")
-        partial_text = "".join(response_chunks)
-        response = f"(Streaming interrupted by error: {e})\n{partial_text}"
-        print(response)
+    # except Exception as e:
+    #     print(f"\n--- Error during law retrieval streaming ---")
+    #     print(f"An error occurred: {e}")
+    #     partial_text = "".join(response_chunks)
+    #     response = f"(Streaming interrupted by error: {e})\n{partial_text}"
+    #     print(response)
 
-    print("\n=== Final Response Text ===\n", response)
-    return response, minimal_law_metadata
+    # print("\n=== Final Response Text ===\n", response)
+
+    # ── CHANGE HERE ──
+    # Return what Streamlit / Flask expect:
+    #   1) ranked_docs   (list of top-5 Document objects)
+    #   2) full_prompt   (the Gemini prompt – Streamlit streams this)
+    #   3) minimal_law_metadata  (for your past-cases RAG step)
+    return ranked_docs, full_prompt, minimal_law_metadata
 
 @app.route('/query', methods=['POST'])
 def handle_query():
@@ -306,7 +312,7 @@ def handle_query():
     response, minimal_law_metadata = process_query(user_query)
 
     # Call past court cases API using minimal law metadata
-    past_cases_response_text = process_query_past_cases(user_query, minimal_law_metadata)
+    past_cases_response_text = process_query_past_cases(user_query, response)
 
     combined_response = {
         "law_response": response,
@@ -316,12 +322,94 @@ def handle_query():
     return jsonify(combined_response)
 
 
+def generate_law_response(full_prompt: str) -> str:
+    """Blocking (non-stream) Gemini call – returns the full answer text."""
+    resp = gemini_client.models.generate_content(
+        model="gemini-2.5-pro-exp-03-25",
+        contents=[full_prompt]
+    )
+    return resp.text
+
+
+def stream_gemini_answer(full_prompt: str, collector: list | None = None):
+    """
+    Streaming generator for Streamlit.
+    If `collector` list is passed, all chunks are appended to it so you later
+    have the full answer without an extra Gemini call.
+    """
+    for ch in gemini_client.models.generate_content_stream(
+            model="gemini-2.5-pro-exp-03-25",
+            contents=[full_prompt]):
+        if collector is not None:
+            collector.append(ch.text)
+        yield ch.text
+
+
+# ─────────────────────────── Flask JSON API ──────────────────────────────────
+from past_cases_rag import process_query_past_cases   # keeps same import
+
+app = Flask(__name__)
+
+@app.route("/query", methods=["POST"])
+def handle_query():
+    user_query = request.json.get("query")
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
+
+    docs, full_prompt, law_meta = process_query(user_query)
+    law_response = generate_law_response(full_prompt)
+    past_cases_resp = process_query_past_cases(user_query, law_response)
+
+    return jsonify({
+        "law_response":        law_response,
+        "past_cases_response": past_cases_resp
+    })
+
+
+# ─────────────────────────── Streamlit UI ────────────────────────────────────
+def streamlit_app():
+    st.set_page_config(page_title="Greek Law Assistant", page_icon="⚖️")
+    st.title("⚖️ Greek Law Retrieval Assistant")
+
+    user_q = st.text_input("Enter your legal query and hit **Enter**:")
+    if not user_q:
+        return
+
+    # ── Retrieval phase (progress bar) ───────────────────────────────────────
+    with st.status("Retrieving documents …", expanded=False):
+        ranked_docs, full_prompt, minimal_meta = process_query(user_q)
+
+    # ── 1. Show retrieved documents first ────────────────────────────────────
+    st.header("📄 Top-5 Retrieved Documents")
+    for i, doc in enumerate(ranked_docs[:5], 1):
+        md = doc.metadata
+        with st.expander(f"Document {i}: {md.get('date','N/A')} • {md.get('court','N/A')}"):
+            st.write("**Metadata**")
+            st.json(md, expanded=False)
+            st.write("**Full Summary**")
+            st.write(md.get("summary", "N/A"))
+
+    # ── 2. Stream law answer --------------------------------------------------
+    st.header("📝 Gemini Answer (streaming)")
+    collected_chunks: list[str] = []
+    st.write_stream(stream_gemini_answer(full_prompt, collector=collected_chunks))
+
+    full_answer_text = "".join(collected_chunks)     # have the whole answer now
+
+    # ── 3. Past court cases ---------------------------------------------------
+    st.header("🏛️ Past Court Cases")
+    past_cases_text = process_query_past_cases(user_q, full_answer_text)
+    st.write(past_cases_text)
+
+if __name__ == "__main__":
+        streamlit_app()
+
 # while True:
 #     user_query = input("\nPlease enter your query ('exit' to quit): ")
 #     if user_query.lower() == 'exit':
 #         break
 #     process_query(user_query)
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+# if __name__ == '__main__':
+#     app.run(debug=True, host='0.0.0.0', port=5000)
 
 
