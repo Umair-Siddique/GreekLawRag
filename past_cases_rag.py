@@ -16,21 +16,22 @@ from langchain.prompts import PromptTemplate  # ensure correct import
 from datetime import datetime
 import streamlit as st
 import re
+import json
 
 load_dotenv()
 
 # Load API keys
-VOYAGE_API_KEY = (os.getenv("VOYAGE_API_KEY") or st.secrets.get("VOYAGE_API_KEY") )
+VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY") or st.secrets.get("VOYAGE_API_KEY") 
 ANTHROPIC_API_KEY =  os.getenv("CLAUDE_API_KEY") or st.secrets.get("CLAUDE_API_KEY")
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
 ES_URL = os.getenv("ES_URL") or st.secrets.get("ES_URL")
 API_KEY = os.getenv("PASTCASE_APIKEY") or st.secrets.get("PASTCASE_APIKEY")
-creds = service_account.Credentials.from_service_account_file(
-    "credentials/gemini-service-account.json",
-    scopes=["https://www.googleapis.com/auth/cloud-platform"]
+sa_info = json.loads(st.secrets["VERTEX_SA_JSON"])
+creds = service_account.Credentials.from_service_account_info(
+    sa_info,
+    scopes=["https://www.googleapis.com/auth/cloud-platform"],
 )
-
 # Initialize genai.Client using Vertex AI
 gemini_client = genai.Client(
     credentials=creds,
