@@ -8,15 +8,14 @@ from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIRerank
 from langchain_community.query_constructors.weaviate import WeaviateTranslator
 from langchain.chains.query_constructor.base import AttributeInfo
-import google.generativeai as genai
+from google import genai
 from google.oauth2 import service_account
 import anthropic
 from langchain.prompts import PromptTemplate  # ensure correct import
 # # Sort retrieved documents by date (assuming DD Month YYYY format, adjust parsing as necessary)
 from datetime import datetime
+import re, json
 import streamlit as st
-import re
-import json
 
 load_dotenv()
 
@@ -27,21 +26,33 @@ anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
 ES_URL = os.getenv("ES_URL") or st.secrets.get("ES_URL")
 API_KEY = os.getenv("PASTCASE_APIKEY") or st.secrets.get("PASTCASE_APIKEY")
-sa_info = json.loads(st.secrets["VERTEX_SA_JSON"])
+
+gemini_creds_dict = {
+    "type": os.getenv("GEMINI_TYPE"),
+    "project_id": os.getenv("GEMINI_PROJECT_ID"),
+    "private_key_id": os.getenv("GEMINI_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("GEMINI_PRIVATE_KEY").replace("\\n", "\n"),  # Ensuring proper newlines
+    "client_email": os.getenv("GEMINI_CLIENT_EMAIL"),
+    "client_id": os.getenv("GEMINI_CLIENT_ID"),
+    "auth_uri": os.getenv("GEMINI_AUTH_URI"),
+    "token_uri": os.getenv("GEMINI_TOKEN_URI"),
+    "auth_provider_x509_cert_url": os.getenv("GEMINI_AUTH_PROVIDER_CERT_URL"),
+    "client_x509_cert_url": os.getenv("GEMINI_CLIENT_CERT_URL"),
+    "universe_domain": os.getenv("GEMINI_UNIVERSE_DOMAIN")
+}
+
 creds = service_account.Credentials.from_service_account_info(
-    sa_info,
-    scopes=["https://www.googleapis.com/auth/cloud-platform"],
-)
-# Initialize genai.Client using Vertex AI
-genai.configure(
-    credentials = creds,
-    vertex_ai   = True,
-    project     = "gemini-api-laws",
-    location    = "us-central1",
+    gemini_creds_dict,
+    scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
 
-# keep the model name handy
-GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"   # or just "gemini-pro"
+# Initialize genai.Client using Vertex AI
+gemini_client = genai.Client(
+    credentials=creds,
+    vertexai=True,
+    project="gemini-api-laws",       
+    location="us-central1"        
+)
 
 llm = ChatAnthropic(
     model="claude-3-7-sonnet-20250219", # Updated model name based on common availability
