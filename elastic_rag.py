@@ -34,17 +34,17 @@ anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
 
 gemini_creds_dict = {
-    "type": os.getenv("GEMINI_TYPE"),
-    "project_id": os.getenv("GEMINI_PROJECT_ID"),
-    "private_key_id": os.getenv("GEMINI_PRIVATE_KEY_ID"),
-    "private_key": os.getenv("GEMINI_PRIVATE_KEY").replace("\\n", "\n"),  # Ensuring proper newlines
-    "client_email": os.getenv("GEMINI_CLIENT_EMAIL"),
-    "client_id": os.getenv("GEMINI_CLIENT_ID"),
-    "auth_uri": os.getenv("GEMINI_AUTH_URI"),
-    "token_uri": os.getenv("GEMINI_TOKEN_URI"),
-    "auth_provider_x509_cert_url": os.getenv("GEMINI_AUTH_PROVIDER_CERT_URL"),
-    "client_x509_cert_url": os.getenv("GEMINI_CLIENT_CERT_URL"),
-    "universe_domain": os.getenv("GEMINI_UNIVERSE_DOMAIN")
+    "type": os.getenv("GEMINI_TYPE") or st.secrets["GEMINI"]["TYPE"],
+    "project_id": os.getenv("GEMINI_PROJECT_ID") or st.secrets["GEMINI"]["PROJECT_ID"],
+    "private_key_id": os.getenv("GEMINI_PRIVATE_KEY_ID") or st.secrets["GEMINI"]["PRIVATE_KEY_ID"],
+    "private_key": (os.getenv("GEMINI_PRIVATE_KEY") or st.secrets["GEMINI"]["PRIVATE_KEY"]).replace("\\n", "\n"),
+    "client_email": os.getenv("GEMINI_CLIENT_EMAIL") or st.secrets["GEMINI"]["CLIENT_EMAIL"],
+    "client_id": os.getenv("GEMINI_CLIENT_ID") or st.secrets["GEMINI"]["CLIENT_ID"],
+    "auth_uri": os.getenv("GEMINI_AUTH_URI") or st.secrets["GEMINI"]["AUTH_URI"],
+    "token_uri": os.getenv("GEMINI_TOKEN_URI") or st.secrets["GEMINI"]["TOKEN_URI"],
+    "auth_provider_x509_cert_url": os.getenv("GEMINI_AUTH_PROVIDER_CERT_URL") or st.secrets["GEMINI"]["AUTH_PROVIDER_CERT_URL"],
+    "client_x509_cert_url": os.getenv("GEMINI_CLIENT_CERT_URL") or st.secrets["GEMINI"]["CLIENT_CERT_URL"],
+    "universe_domain": os.getenv("GEMINI_UNIVERSE_DOMAIN") or st.secrets["GEMINI"]["UNIVERSE_DOMAIN"]
 }
 
 creds = service_account.Credentials.from_service_account_info(
