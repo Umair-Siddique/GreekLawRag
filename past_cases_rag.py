@@ -33,12 +33,15 @@ creds = service_account.Credentials.from_service_account_info(
     scopes=["https://www.googleapis.com/auth/cloud-platform"],
 )
 # Initialize genai.Client using Vertex AI
-gemini_client = genai.Client(
-    credentials=creds,
-    vertexai=True,
-    project="gemini-api-laws",       
-    location="us-central1"        
+genai.configure(
+    credentials = creds,
+    vertex_ai   = True,
+    project     = "gemini-api-laws",
+    location    = "us-central1",
 )
+
+# keep the model name handy
+GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"   # or just "gemini-pro"
 
 llm = ChatAnthropic(
     model="claude-3-7-sonnet-20250219", # Updated model name based on common availability
