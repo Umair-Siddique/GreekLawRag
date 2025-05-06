@@ -9,3 +9,4 @@ langchain-elasticsearch
 google-generativeai
 google-auth
 streamlit
+flask
