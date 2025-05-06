@@ -7,6 +7,7 @@ langchain-anthropic
 anthropic
 langchain-elasticsearch
 google-generativeai==0.8.4
+google-genai==1.10.0
 google-ai-generativelanguage
 google-api-python-client
 google-api-core
