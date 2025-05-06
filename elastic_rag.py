@@ -8,7 +8,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIRerank
 from langchain_community.query_constructors.weaviate import WeaviateTranslator
 from langchain.chains.query_constructor.base import AttributeInfo
-from google import genai
+import google.generativeai as genai
 from google.oauth2 import service_account
 import anthropic
 from langchain.prompts import PromptTemplate  # ensure correct import
