@@ -14,17 +14,18 @@ import anthropic
 from langchain.prompts import PromptTemplate  # ensure correct import
 # # Sort retrieved documents by date (assuming DD Month YYYY format, adjust parsing as necessary)
 from datetime import datetime
+import streamlit as st
 import re
 
 load_dotenv()
 
 # Load API keys
-VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("CLAUDE_API_KEY")
+VOYAGE_API_KEY = (os.getenv("VOYAGE_API_KEY") or st.secrets.get("VOYAGE_API_KEY") )
+ANTHROPIC_API_KEY =  os.getenv("CLAUDE_API_KEY") or st.secrets.get("CLAUDE_API_KEY")
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
-ES_URL = os.getenv("ES_URL")
-API_KEY = os.getenv("PASTCASE_APIKEY")
+ES_URL = os.getenv("ES_URL") or st.secrets.get("ES_URL")
+API_KEY = os.getenv("PASTCASE_APIKEY") or st.secrets.get("PASTCASE_APIKEY")
 creds = service_account.Credentials.from_service_account_file(
     "credentials/gemini-service-account.json",
     scopes=["https://www.googleapis.com/auth/cloud-platform"]
