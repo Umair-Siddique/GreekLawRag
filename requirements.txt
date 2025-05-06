@@ -13,6 +13,7 @@ google-api-python-client
 google-api-core
 google-auth
 protobuf
+lark
 pydantic
 tqdm
 typing-extensions
