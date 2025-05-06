@@ -6,7 +6,7 @@ langchain-voyageai
 langchain-anthropic
 anthropic
 langchain-elasticsearch
-google-generativeai
+google-generativeai==0.4.1
 google-auth
 streamlit
 flask
