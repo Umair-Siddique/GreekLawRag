@@ -8,7 +8,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_voyageai import VoyageAIRerank
 from langchain_community.query_constructors.weaviate import WeaviateTranslator
 from langchain.chains.query_constructor.base import AttributeInfo
-import google.generativeai as genai
+from google import genai
 from google.oauth2 import service_account
 import anthropic
 from langchain.prompts import PromptTemplate  # ensure correct import
@@ -19,7 +19,6 @@ from flask import Flask, request, jsonify
 from past_cases_rag import process_query_past_cases
 import streamlit as st
 import sys
-import json
 
 load_dotenv()
 
@@ -30,27 +29,23 @@ app = Flask(__name__)
 VOYAGE_API_KEY = os.getenv("VOYAGE_API_KEY") or st.secrets.get("VOYAGE_API_KEY") 
 ANTHROPIC_API_KEY =  os.getenv("CLAUDE_API_KEY") or st.secrets.get("CLAUDE_API_KEY")
 ES_URL=os.getenv("ES_URL") or st.secrets.get("ES_URL")
-API_KEY= os.getenv("APIKEY_ES_LAWS") or st.secrets.get("APIKEY_ES_LAWS")
+API_KEY= os.getenv("APIKEY_ES_LAWS") 
 anthropic_client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 embedding_model = VoyageAIEmbeddings(model="voyage-3", voyage_api_key=VOYAGE_API_KEY)
 
 
-sa_info = json.loads(st.secrets["VERTEX_SA_JSON"])
-creds = service_account.Credentials.from_service_account_info(
-    sa_info,
-    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+creds = service_account.Credentials.from_service_account_file(
+    "credentials/gemini-service-account.json",
+    scopes=["https://www.googleapis.com/auth/cloud-platform"]
 )
 
 # Initialize genai.Client using Vertex AI
-genai.configure(
-    credentials = creds,
-    vertex_ai   = True,
-    project     = "gemini-api-laws",
-    location    = "us-central1",
+gemini_client = genai.Client(
+    credentials=creds,
+    vertexai=True,
+    project="gemini-api-laws",       
+    location="us-central1"        
 )
-
-# keep the model name handy
-GEMINI_MODEL = "gemini-2.5-pro-exp-03-25"   # or just "gemini-pro"
 
 llm = ChatAnthropic(
     model="claude-3-7-sonnet-20250219", # Updated model name based on common availability
@@ -306,34 +301,34 @@ DOCUMENTS:
     #   3) minimal_law_metadata  (for your past-cases RAG step)
     return ranked_docs, full_prompt, minimal_law_metadata
 
-# @app.route('/query', methods=['POST'])
-# def handle_query():
-#     user_query = request.json.get('query')
+@app.route('/query', methods=['POST'])
+def handle_query():
+    user_query = request.json.get('query')
 
-#     if not user_query:
-#         return jsonify({"error": "No query provided"}), 400
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
 
-#     # Execute your existing process_query logic here
-#     response, minimal_law_metadata = process_query(user_query)
+    # Execute your existing process_query logic here
+    response, minimal_law_metadata = process_query(user_query)
 
-#     # Call past court cases API using minimal law metadata
-#     past_cases_response_text = process_query_past_cases(user_query, response)
+    # Call past court cases API using minimal law metadata
+    past_cases_response_text = process_query_past_cases(user_query, response)
 
-#     combined_response = {
-#         "law_response": response,
-#         "past_cases_response": past_cases_response_text
-#     }
+    combined_response = {
+        "law_response": response,
+        "past_cases_response": past_cases_response_text
+    }
 
-#     return jsonify(combined_response)
+    return jsonify(combined_response)
 
 
-# def generate_law_response(full_prompt: str) -> str:
-#     """Blocking (non-stream) Gemini call – returns the full answer text."""
-#     resp = gemini_client.models.generate_content(
-#         model="gemini-2.5-pro-exp-03-25",
-#         contents=[full_prompt]
-#     )
-#     return resp.text
+def generate_law_response(full_prompt: str) -> str:
+    """Blocking (non-stream) Gemini call – returns the full answer text."""
+    resp = gemini_client.models.generate_content(
+        model="gemini-2.5-pro-exp-03-25",
+        contents=[full_prompt]
+    )
+    return resp.text
 
 
 def stream_gemini_answer(full_prompt: str, collector: list | None = None):
@@ -342,8 +337,7 @@ def stream_gemini_answer(full_prompt: str, collector: list | None = None):
     If `collector` list is passed, all chunks are appended to it so you later
     have the full answer without an extra Gemini call.
     """
-    model = genai.GenerativeModel(GEMINI_MODEL)
-    for ch in model.generate_content_stream(
+    for ch in gemini_client.models.generate_content_stream(
             model="gemini-2.5-pro-exp-03-25",
             contents=[full_prompt]):
         if collector is not None:
@@ -354,22 +348,22 @@ def stream_gemini_answer(full_prompt: str, collector: list | None = None):
 # ─────────────────────────── Flask JSON API ──────────────────────────────────
 from past_cases_rag import process_query_past_cases   # keeps same import
 
-# app = Flask(__name__)
+app = Flask(__name__)
 
-# @app.route("/query", methods=["POST"])
-# def handle_query():
-#     user_query = request.json.get("query")
-#     if not user_query:
-#         return jsonify({"error": "No query provided"}), 400
+@app.route("/query", methods=["POST"])
+def handle_query():
+    user_query = request.json.get("query")
+    if not user_query:
+        return jsonify({"error": "No query provided"}), 400
 
-#     docs, full_prompt, law_meta = process_query(user_query)
-#     law_response = generate_law_response(full_prompt)
-#     past_cases_resp = process_query_past_cases(user_query, law_response)
+    docs, full_prompt, law_meta = process_query(user_query)
+    law_response = generate_law_response(full_prompt)
+    past_cases_resp = process_query_past_cases(user_query, law_response)
 
-#     return jsonify({
-#         "law_response":        law_response,
-#         "past_cases_response": past_cases_resp
-#     })
+    return jsonify({
+        "law_response":        law_response,
+        "past_cases_response": past_cases_resp
+    })
 
 
 # ─────────────────────────── Streamlit UI ────────────────────────────────────
