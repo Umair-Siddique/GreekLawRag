@@ -8,6 +8,12 @@ anthropic
 langchain-elasticsearch
 google-generativeai==0.8.4
 google-ai-generativelanguage
+google-api-python-client
+google-api-core
 google-auth
+protobuf
+pydantic
+tqdm
+typing-extensions
 streamlit
 flask
