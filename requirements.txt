@@ -5,5 +5,7 @@ langchain-community
 langchain-voyageai
 langchain-anthropic
 anthropic
+langchain-elasticsearch
 google-generativeai
 google-auth
+streamlit
